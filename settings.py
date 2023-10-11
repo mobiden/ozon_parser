@@ -20,6 +20,6 @@ with open(os.path.join(
 
 
 def create_logs(string: str):
-    with open("logs.txt", "a") as l:
+    with open("logs.txt", "a", encoding='utf-8') as l:
         string = str(datetime.now()) + ": " + string
         l.write(str(string) + "\n")

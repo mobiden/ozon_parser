@@ -1,22 +1,91 @@
 from database import execute_query
 from database import create_connection
-from parsing import record_class
+from pars import Product_class
 
 
-def create_record(new_record:record_class):
+
+def _execute_read_query(connection, query):
+    cursor = connection.cursor()
+    result = None
+    try:
+        cursor.execute(query)
+        result = cursor.fetchall()
+        return result
+    except Exception as e:
+        print(f"Произошла ошибка '{e}'")
+
+
+
+def create_product_record(new_record:Product_class):
     connection = create_connection()
-    sql = "INSERT INTO likes (current_date, cb_dollar, cb_euro, cb_yuan, birzh_dollar," \
-          " birzh_euro, birzh_yuan, buy_dollar, sell_dollar, buy_euro, sell_euro)" \
-          " VALUES ( %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s )"
+    new_record.prod_id = int(new_record.prod_id)
+    sql = "INSERT INTO product_table (title, prod_num, description, brand, collection, " \
+          "fabric, dress_type, clasp_type, color, pr_style, season, country," \
+          " pr_print, sleeve_length, sleeve_type, waistline, hem_length,  interior_material," \
+          " details, holiday) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s," \
+          " %s, %s, %s, %s, %s, %s, %s, %s, %s)"
 
-    val = [
-        (new_record.current_date, new_record.cb_dollar, new_record.cb_euro, new_record.cb_yuan,
-            new_record.birzh_dollar, new_record.birzh_euro, new_record.birzh_yuan,
-            new_record.buy_dollar, new_record.sell_dollar, new_record.buy_euro, new_record.sell_euro)
-                    ]
+    val = (new_record.title, new_record.prod_id,
+           new_record.description, new_record.brand, new_record.collection,
+           new_record.fabric, new_record.dress_type, new_record.clasp_type,
+           new_record.color, new_record.pr_style, new_record.season, new_record.country,
+           new_record.pr_print, new_record.sleeve_length, new_record.sleeve_type,
+           new_record.waistline, new_record.hem_length, new_record.interior_material,
+           new_record.details, new_record.holiday)
+
+    cursor = connection.cursor()
+    cursor.execute(sql, val)
+    connection.commit()
+
+    """
+        sql = "INSERT INTO 'product_table' ('title', 'prod_id', 'description', 'brand', 'collection', " \
+              "fabric, dress_type, clasp_type, color, pr_style, season, country," \
+              " pr_print, sleeve_length, sleeve_type, waistline, hem_length,  interior_material," \
+              " details, holiday) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s," \
+              " %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+
+        val = (new_record.title, int(new_record.product_id),
+                new_record.description, new_record.brand, new_record.collection,
+                new_record.fabric, new_record.dress_type,new_record.clasp_type,
+                new_record.color, new_record.pr_style,new_record.season, new_record.country,
+                new_record.pr_print, new_record.sleeve_length, new_record.sleeve_type,
+                new_record.waistline, new_record.hem_length,new_record.interior_material,
+                new_record.details, new_record.holiday)
+    """
+
+
+def create_pict_record(pict_list: list, pr_id: int):
+    val_list = []
+    connection = create_connection()
+
+    for pict in pict_list:
+        temp_tuple = (pr_id, pict)
+        val_list.append(temp_tuple)
+
+    sql = "INSERT INTO picture_table (prod_num, pict_path)  VALUES ( %s, %s)"
+    val = val_list
+
     cursor = connection.cursor()
     cursor.executemany(sql, val)
     connection.commit()
+
+
+def get_record_list(table:str, pr_id: -1):
+    connection = create_connection()
+    select_line, where_line = '', ''
+    if table.lower() == "product" or table.lower() == 'product_table':
+        select_line = 'SELECT * FROM product_table'
+        if int(pr_id) >= 0:
+            where_line = f' WHERE product_table.prod_num = {pr_id}'
+    elif table.lower() in["picture","pict_table", "picture_table"]:
+        select_line = 'SELECT * FROM picture_table'
+        if pr_id >= 0:
+            where_line = f' WHERE picture_table.prod_num = {pr_id}'
+    assert len(select_line + where_line) > 0
+
+    return  _execute_read_query(connection, select_line + where_line)
+
+
 
 
 def delete_record(id:int):

@@ -1,22 +1,25 @@
 import mysql.connector
 from mysql.connector import Error
-from settings import current_db
+from settings import db_config
 
-def create_connection(host_name = current_db['host'],
-                      user_name = current_db['user'],
-                      user_password = current_db['password'],
-                      db_name = current_db['database']
-                                                            ):
+
+def create_connection(host_name = db_config['host'],
+                      user_name = db_config['user'],
+                      user_password = db_config['password'],
+                      db_name = db_config['database'],
+                      port = db_config['port']
+                                                           ):
     connection = None
     try:
         connection = mysql.connector.connect(
             host=host_name,
             user=user_name,
             passwd=user_password,
-            database=db_name
+            database=db_name,
+            port=port,
         )
         print("Connection to MySQL DB successful")
-    except Error as e:
+    except Exception as e:
         print(f"The error '{e}' occurred")
 
     return connection
