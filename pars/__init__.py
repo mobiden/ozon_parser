@@ -30,7 +30,7 @@ class Product_class:
        self.sleeve_length = ''
        self.sleeve_type = ''
        self.waistline = ''
-       self.hem_length = ''  #Длина подола
+       self.hem_length = ''  #Длина платья
        self.interior_material = ''
        self.details = ''  #Детали: Манжеты, Разрезы
        self.holiday = ''

@@ -16,8 +16,8 @@ def _execute_read_query(connection, query):
 
 
 
-def create_product_record(new_record:Product_class):
-    connection = create_connection()
+def create_product_record(new_record:Product_class, connection):
+  #  connection = create_connection()
     new_record.prod_id = int(new_record.prod_id)
     sql = "INSERT INTO product_table (title, prod_num, description, brand, collection, " \
           "fabric, dress_type, clasp_type, color, pr_style, season, country," \
@@ -37,26 +37,10 @@ def create_product_record(new_record:Product_class):
     cursor.execute(sql, val)
     connection.commit()
 
-    """
-        sql = "INSERT INTO 'product_table' ('title', 'prod_id', 'description', 'brand', 'collection', " \
-              "fabric, dress_type, clasp_type, color, pr_style, season, country," \
-              " pr_print, sleeve_length, sleeve_type, waistline, hem_length,  interior_material," \
-              " details, holiday) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s," \
-              " %s, %s, %s, %s, %s, %s, %s, %s, %s)"
 
-        val = (new_record.title, int(new_record.product_id),
-                new_record.description, new_record.brand, new_record.collection,
-                new_record.fabric, new_record.dress_type,new_record.clasp_type,
-                new_record.color, new_record.pr_style,new_record.season, new_record.country,
-                new_record.pr_print, new_record.sleeve_length, new_record.sleeve_type,
-                new_record.waistline, new_record.hem_length,new_record.interior_material,
-                new_record.details, new_record.holiday)
-    """
-
-
-def create_pict_record(pict_list: list, pr_id: int):
+def create_pict_record(pict_list: list, pr_id: int, connection):
     val_list = []
-    connection = create_connection()
+    #connection = create_connection()
 
     for pict in pict_list:
         temp_tuple = (pr_id, pict)
@@ -70,8 +54,8 @@ def create_pict_record(pict_list: list, pr_id: int):
     connection.commit()
 
 
-def get_record_list(table:str, pr_id: -1):
-    connection = create_connection()
+def get_record_list(table:str, pr_id: -1, connection):
+ #   connection = create_connection()
     select_line, where_line = '', ''
     if table.lower() == "product" or table.lower() == 'product_table':
         select_line = 'SELECT * FROM product_table'
@@ -88,6 +72,6 @@ def get_record_list(table:str, pr_id: -1):
 
 
 
-def delete_record(id:int):
+def delete_record(id:int, connection):
     pass
 

@@ -3,6 +3,7 @@ import json
 from selenium.webdriver.common.by import By
 import time
 
+from database import create_connection
 from database.db_view import get_record_list, create_product_record, create_pict_record
 from pars import Selenium_Class, Product_class
 from settings import CATALOGS_PATH, PRODUCTS_PATH, MAIN_URL, IMG_PATH, create_logs
@@ -12,6 +13,7 @@ import re
 import requests
 from PIL import Image
 
+connection = create_connection()
 
 def save_page(url:str, filename: str):
     selen = Selenium_Class()
@@ -96,7 +98,13 @@ def get_cataloge_pages(url:str, filename:str):
 
 def add_product_to_base(pictures_path: list, product_json:dict, prod_id:int) -> Product_class:
     adding = True
-    product_descr = json.loads(product_json['webCharacteristics-939965-pdpApparelPage2-2'])
+    if len(pictures_path) == 0:
+        return None
+    try:
+        product_descr = json.loads(product_json['webCharacteristics-939965-pdpApparelPage2-2'])
+    except Exception as e:
+        print(e)
+        return None
     product = Product_class()
     product.prod_id = prod_id
     product.pictures_path = pictures_path
@@ -106,7 +114,6 @@ def add_product_to_base(pictures_path: list, product_json:dict, prod_id:int) -> 
     for item in temp_dict:
         key = item['key'].lower()
         text = item['values'][0]['text'].lower()
-
 
         if key == 'type':
             if text.lower() != 'платье':
@@ -154,15 +161,16 @@ def add_product_to_base(pictures_path: list, product_json:dict, prod_id:int) -> 
                            'sexmaster', 'instruction', 'packing', 'numitemsdcml',
                            'setapparel', 'sizemanufacturer', 'isadult', 'sizeheight',
                            'lenghtclothing', 'trucode', 'patternbust', 'temprange',
-                           'compressionclass', ]:
+                           'compressionclass', 'composition']:
                 with open('unknown_feature.txt', 'a', encoding='utf-8') as f:
                     f.write(f'неизвестный признак: {key} -  {text} \n')
 
 
-    rec = get_record_list('product', product.prod_id)
+    rec = get_record_list('product', product.prod_id, connection)
     if (not rec or len(rec) == 0) and adding:
-        create_product_record(product)
-        create_pict_record(pict_list = product.pictures_path, pr_id = product.prod_id)
+        create_product_record(product, connection)
+        create_pict_record(pict_list = product.pictures_path, pr_id = product.prod_id,
+                           connection=connection)
 
     return product
 
@@ -214,8 +222,9 @@ def product_page2_parser(url:str):
 
 def cataloge_page_parser():
     file_list = os.listdir(CATALOGS_PATH)
+    done_file = []
     if os.path.exists(CATALOGS_PATH + 'page_done.txt'):
-        with open(CATALOGS_PATH + 'done.txt', 'r', encoding='utf-8') as f:
+        with open(CATALOGS_PATH + 'page_done.txt', 'r', encoding='utf-8') as f:
             done_file = [line.strip() for line in f.readline()]
     for html_file in file_list:
         if os.path.exists(CATALOGS_PATH + 'page_done.txt'):
@@ -234,13 +243,22 @@ def cataloge_page_parser():
             url = p_href[1] + '/' + p_href[2] + '/'
             prod_id = url.split('-')[-1].replace('/', '')
             prod_id = ''.join(let if let.isdigit() else '' for let in prod_id)
-            check_rec = get_record_list('product', prod_id)
+            check_rec = get_record_list('product', prod_id, connection)
             if check_rec:
                 if len(check_rec) > 0:
                     continue
             product_json1 = product_page1_parser(url)
-            product_json2 = product_page2_parser(url)
-            product = add_product_to_base(product_json1, product_json2 , prod_id)
-            print(product)
-        with open(CATALOGS_PATH + 'done.txt', 'w', encoding="utf-8") as f:
-            f.write(html_file)
+            if len(product_json1) > 0:
+                product_json2 = product_page2_parser(url)
+                product = add_product_to_base(product_json1, product_json2 , prod_id)
+                if product is not None:
+                    print(product)
+                else:
+                    print(f'продукт {prod_id} не сохранен')
+                    create_logs(f'продукт {prod_id} не сохранен')
+            else:
+                print(f'нет фото у продукта {prod_id}')
+                create_logs(f'нет фото у продукта {prod_id}')
+
+        with open(CATALOGS_PATH + 'page_done.txt', 'a', encoding="utf-8") as f:
+            f.write(html_file + '\n')
