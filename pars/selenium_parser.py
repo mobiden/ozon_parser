@@ -6,7 +6,7 @@ import time
 from database import create_connection
 from database.db_view import get_record_list, create_product_record, create_pict_record
 from pars import Selenium_Class, Product_class
-from settings import CATALOGS_PATH, PRODUCTS_PATH, MAIN_URL, IMG_PATH, create_logs
+from settings import CATALOGS_PATH, PRODUCTS_PATH, MAIN_URL, IMG_PATH, create_logs, BASE_DIR
 from bs4 import BeautifulSoup as bs
 import os
 import re
@@ -14,6 +14,69 @@ import requests
 from PIL import Image
 
 connection = create_connection()
+
+
+
+def found_checking(url, filename):
+    create_logs(f'На странице {url} включилась проверка. Удаляем сохраненную страницу {filename}', printing=True)
+   # filename = filename.replace('/', '\\')
+    try:
+        os.remove(filename)
+    except Exception as e:
+        create_logs(f'При удалении {filename} возникла ошибка {e}', True)
+
+    time.sleep(6)
+
+
+def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
+    html_file = add + html_file
+    if os.path.exists(html_file):
+        with open(html_file, 'r', encoding='utf-8') as f:
+            html = f.read()
+        soup = bs(html, 'lxml')
+
+        head_title = soup.head.title
+        if head_title is not None and head_title.text == 'Один момент…':
+            found_checking(url=html_file, filename=add + html_file)
+        return False
+
+        prod_hrefs = soup.find_all(href=re.compile("product"))
+
+        for p_href in prod_hrefs:
+            p_href = p_href.get('href')
+            if p_href.find('www.ozon.ru') >= 0:
+                continue
+            p_href = p_href.strip().split('/')
+            url = p_href[1] + '/' + p_href[2] + '/'
+            prod_id = url.split('-')[-1].replace('/', '')
+            prod_id = ''.join(let if let.isdigit() else '' for let in prod_id)
+            check_rec = get_record_list('product', prod_id, connection)
+            if check_rec:
+                if len(check_rec) > 0:
+                    create_logs(f'продукт {prod_id} уже есть в базе')
+                    continue
+            product_json1, pr1_filename = product_page1_parser(url)
+            if product_json1 and len(product_json1) > 0:
+                product_json2 = product_page2_parser(url)
+                if product_json2 and len(product_json2) > 0:
+                    product = add_product_to_base(product_json1, product_json2, prod_id)
+                    if product is not None:
+                        print(product)
+                        return True
+                    else:
+                        create_logs(f'продукт {prod_id} не сохранен', True)
+                else:
+                    print(f'нет описания продукта {prod_id}')
+                    create_logs(f'нет описания продукта {prod_id}')
+            else:
+                print(f'нет фото у продукта {prod_id}')
+                create_logs(f'нет фото у продукта {prod_id}')
+               # get_product_page(html_file=pr1_filename, add='', connection=connection)
+        return True
+    else:
+        print(f'нет файла {html_file}')
+        return False
+
 
 def save_page(url:str, filename: str):
     selen = Selenium_Class()
@@ -23,20 +86,26 @@ def save_page(url:str, filename: str):
         time.sleep(3)
         driver.execute_script("window.scrollTo(5,4000);")
         time.sleep(5)
+        driver.execute_script("window.scrollTo(5,4000);")
+        time.sleep(5)
         html = driver.page_source
         with open(CATALOGS_PATH + filename, 'w', encoding='utf-8') as f:
             f.write(html)
     except Exception as ex:
-        print(ex)
+        create_logs(f'при сохранении файла {filename} произошла ошибка {ex}', True)
+
     finally:
+        create_logs(f'сохранен файл {CATALOGS_PATH + filename}', True)
         driver.close()
         driver.quit()
 
 
 def save_product(url:str, filename: str) -> str:
     # сохраняет страницу, передает json в тексте
-    if os.path.exists(PRODUCTS_PATH + filename + '.html'):
-        with open(PRODUCTS_PATH + filename + '.html', encoding='utf-8') as f:
+    full_f_name = PRODUCTS_PATH + filename + '.html'
+    if os.path.exists(full_f_name):
+        create_logs(f'открываем существующий файл {filename}')
+        with open(full_f_name, encoding='utf-8') as f:
             html = f.read()
     else:
         selen = Selenium_Class()
@@ -46,7 +115,7 @@ def save_product(url:str, filename: str) -> str:
             driver.get(url)
             time.sleep(6)
             html = driver.page_source
-            with open(PRODUCTS_PATH + filename + '.html', 'w', encoding='utf-8') as f:
+            with open(full_f_name, 'w', encoding='utf-8') as f:
                 f.write(html)
 
 
@@ -56,9 +125,7 @@ def save_product(url:str, filename: str) -> str:
         finally:
             driver.close()
             driver.quit()
-
-    return  html,  PRODUCTS_PATH + filename
-
+    return html, full_f_name
 
 
 
@@ -80,18 +147,24 @@ def save_pict(url, filename):
             return True
 
 
-
-def get_cataloge_pages(url:str, filename:str):
-    #url = "https://www.ozon.ru/category/kompasy-11461/"
+def get_cataloge_pages(url='https://www.ozon.ru/category/platya-zhenskie-7502/'):
+    #url =
     selen = Selenium_Class()
 
-    MAX_PAGE = 1000 # Ограничим парсинг первыми 1000 страницами
-    i = 50
+    MAX_PAGE = 2000 # Ограничим парсинг первыми 1000 страницами
+    i = 1
     while i <= MAX_PAGE:
-        filename = f'page_' + str(i) + '.html'
-        if i != 1:
-            url = url + '?page=' + str(i)
-        save_page(url, filename)
+        filename = 'page_' + str(i) + '.html'
+        if os.path.exists(CATALOGS_PATH + filename):
+            create_logs(f'файл {filename}уже существует')
+        else:
+            if i != 1:
+                new_url = url + '?page=' + str(i)
+            else:
+                new_url = url
+            save_page(new_url, filename)
+
+            cataloge_page_parser()
         i += 1
 
 
@@ -100,8 +173,14 @@ def add_product_to_base(pictures_path: list, product_json:dict, prod_id:int) -> 
     adding = True
     if len(pictures_path) == 0:
         return None
+
     try:
-        product_descr = json.loads(product_json['webCharacteristics-939965-pdpApparelPage2-2'])
+        for item in product_json:
+            if 'webCharacteristics' in item:
+                new_categ = item
+                break
+
+        product_descr = json.loads(product_json[new_categ])
     except Exception as e:
         print(e)
         return None
@@ -146,7 +225,7 @@ def add_product_to_base(pictures_path: list, product_json:dict, prod_id:int) -> 
         elif key == 'waist':
             product.waistline = text
         elif key == 'color':
-            product.color = text
+            product.color = text.split(',')[0].strip()
         elif key == 'material':
             product.fabric = text
         elif key == 'detailsclothes':
@@ -161,7 +240,10 @@ def add_product_to_base(pictures_path: list, product_json:dict, prod_id:int) -> 
                            'sexmaster', 'instruction', 'packing', 'numitemsdcml',
                            'setapparel', 'sizemanufacturer', 'isadult', 'sizeheight',
                            'lenghtclothing', 'trucode', 'patternbust', 'temprange',
-                           'compressionclass', 'composition']:
+                           'compressionclass', 'composition', 'typesport',
+                           'seria', 'numitemspair', 'personageapparel', 'combattype',
+                           'girth', 'breastsupportgrade', 'workwearpurpose', 'dense',
+                           'fillermaterialap', 'themesholiday', 'insulation']:
                 with open('unknown_feature.txt', 'a', encoding='utf-8') as f:
                     f.write(f'неизвестный признак: {key} -  {text} \n')
 
@@ -171,6 +253,8 @@ def add_product_to_base(pictures_path: list, product_json:dict, prod_id:int) -> 
         create_product_record(product, connection)
         create_pict_record(pict_list = product.pictures_path, pr_id = product.prod_id,
                            connection=connection)
+    else:
+        create_logs(f'товар {product.prod_id} уже есть в базе', True)
 
     return product
 
@@ -188,17 +272,27 @@ def product_page1_parser(url:str, tempfile = ''):
         with open(tempfile, 'r', encoding='utf-8') as f:
             html = f.read()
     soup = bs(html, 'lxml')
-    div_jm5 = soup.find_all(class_='jm5')
-    for enum, jm5 in enumerate(div_jm5):
-        j = jm5.contents[0]
-    #    pict_url1 = j.get('src')
-    #    save_pict(pict_url1, IMG_PATH + ch_url + str(enum) + '.jpg' )
-        pict_url2 = j.get('srcset').split()[0]
-        answer = save_pict(pict_url2, IMG_PATH + ch_url + '-' + str(enum) + '.jpg' )
-        if answer:
-            pict_path_list.append(IMG_PATH + ch_url + '-' + str(enum) + '.jpg')
-    #time.sleep(6)
-    return pict_path_list
+
+    head_title = soup.head.title
+    if head_title is not None and head_title.text == 'Один момент…':
+        found_checking(url=resp, filename=filename)
+        return None, None
+    else:
+        found_divs = soup.find_all('img', attrs = {'srcset' : True})
+        for enum, found_d in enumerate(found_divs):
+
+
+        #    pict_url1 = j.get('src')
+        #    save_pict(pict_url1, IMG_PATH + ch_url + str(enum) + '.jpg' )
+            pict_url2 = found_d.get('srcset').split()[0]
+            if pict_url2[-3:] != 'jpg':
+                continue
+            answer = save_pict(pict_url2, IMG_PATH + ch_url + '-' + str(enum) + '.jpg' )
+            if answer:
+                pict_path_list.append(IMG_PATH + ch_url + '-' + str(enum) + '.jpg')
+        #time.sleep(6)
+        return pict_path_list, filename
+
 
 
 
@@ -208,16 +302,23 @@ def product_page2_parser(url:str):
     add_url1 = '?layout_container=pdpApparelPage2&layout_page_index=2'
     ch_url = url.replace('/', '-') + '2'
     resp = (MAIN_URL + add_url0 + url + add_url1)
-    print(f'начинаем сохранять вторую страницу {ch_url}')
-    html, _ = save_product(url=resp, filename=ch_url)
+    print(f'начинаем обрабатывать вторую страницу {ch_url}')
+    create_logs(f'начинаем обрабатывать вторую страницу {ch_url}')
+    html, filename = save_product(url=resp, filename=ch_url)
     soup = bs(html, 'lxml')
-    json_text = soup.find('pre').text
-    product_json = json.loads(json_text)
-    with open (PRODUCTS_PATH + ch_url + '.json', 'w', encoding='utf-8') as f:
-        json.dump(product_json, f, ensure_ascii=False)
-    #print(product_json)
-    time.sleep(6)
-    return product_json['widgetStates']
+    head_title = soup.head.title
+    if head_title is not None and head_title.text in ['Один момент…', '502 Bad Gateway']:
+        create_logs(f'получен ответ {head_title.text}', True)
+        found_checking(url=resp, filename=filename)
+        return []
+    else:
+        json_text = soup.find('pre').text
+        product_json = json.loads(json_text)
+    #    with open (PRODUCTS_PATH + ch_url + '.json', 'w', encoding='utf-8') as f: #сохранение json
+     #       json.dump(product_json, f, ensure_ascii=False)
+        #print(product_json)
+        time.sleep(6)
+        return product_json['widgetStates']
 
 
 def cataloge_page_parser():
@@ -225,40 +326,18 @@ def cataloge_page_parser():
     done_file = []
     if os.path.exists(CATALOGS_PATH + 'page_done.txt'):
         with open(CATALOGS_PATH + 'page_done.txt', 'r', encoding='utf-8') as f:
-            done_file = [line.strip() for line in f.readline()]
+            done_file = [line.strip() for line in f.readlines()]
     for html_file in file_list:
-        if os.path.exists(CATALOGS_PATH + 'page_done.txt'):
-            if html_file in done_file:
-                continue
         if html_file[-4:] != 'html':
             continue
 
-        with open(CATALOGS_PATH + html_file, 'r', encoding='utf-8') as f:
-            html = f.read()
-        soup = bs(html, 'lxml')
-        prod_hrefs = soup.find_all(href=re.compile("product"))
-        for p_href in prod_hrefs:
-            p_href = p_href.get('href')
-            p_href = p_href.strip().split('/')
-            url = p_href[1] + '/' + p_href[2] + '/'
-            prod_id = url.split('-')[-1].replace('/', '')
-            prod_id = ''.join(let if let.isdigit() else '' for let in prod_id)
-            check_rec = get_record_list('product', prod_id, connection)
-            if check_rec:
-                if len(check_rec) > 0:
-                    continue
-            product_json1 = product_page1_parser(url)
-            if len(product_json1) > 0:
-                product_json2 = product_page2_parser(url)
-                product = add_product_to_base(product_json1, product_json2 , prod_id)
-                if product is not None:
-                    print(product)
-                else:
-                    print(f'продукт {prod_id} не сохранен')
-                    create_logs(f'продукт {prod_id} не сохранен')
-            else:
-                print(f'нет фото у продукта {prod_id}')
-                create_logs(f'нет фото у продукта {prod_id}')
 
-        with open(CATALOGS_PATH + 'page_done.txt', 'a', encoding="utf-8") as f:
-            f.write(html_file + '\n')
+        if os.path.exists(CATALOGS_PATH + 'page_done.txt'):
+            if html_file in done_file:
+                continue
+
+        create_logs(f'парсим {html_file}')
+        res = get_product_page(html_file = html_file, add = CATALOGS_PATH, connection = connection)
+        if res:
+            with open(CATALOGS_PATH + 'page_done.txt', 'a', encoding="utf-8") as f:
+                f.write(html_file + '\n')

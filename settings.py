@@ -3,13 +3,12 @@ import os
 from datetime import datetime
 
 
-CATALOGS_PATH = 'media/pages/cataloges/'
-PRODUCTS_PATH = 'media/pages/products/'
-IMG_PATH = 'media/img/'
+CATALOGS_PATH = 'C:\\Python\\my_projects\\Work\\cataloges\\'
+PRODUCTS_PATH = 'C:\\Python\\my_projects\\Work\products\\'
+IMG_PATH = 'C:\\Python\\my_projects\\Work\\img\\'
 MAIN_URL = 'https://www.ozon.ru/'
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) + '\\'
 #загрузка конфиг файла
 with open(os.path.join(
        os.path.dirname(os.path.abspath(__file__)), 'config.yml'), "r") as f:
@@ -19,7 +18,9 @@ with open(os.path.join(
     db_config =  APP_CONFIG[current_db]
 
 
-def create_logs(string: str):
+def create_logs(string: str, printing = False):
     with open("logs.txt", "a", encoding='utf-8') as l:
         string = str(datetime.now()) + ": " + string
         l.write(str(string) + "\n")
+    if printing:
+        print(string)

@@ -1,5 +1,6 @@
 from database import execute_query
 from database import create_connection
+from settings import create_logs
 from pars import Product_class
 
 
@@ -13,7 +14,7 @@ def _execute_read_query(connection, query):
         return result
     except Exception as e:
         print(f"Произошла ошибка '{e}'")
-
+        create_logs(f"Произошла ошибка '{e}'")
 
 
 def create_product_record(new_record:Product_class, connection):
@@ -36,6 +37,7 @@ def create_product_record(new_record:Product_class, connection):
     cursor = connection.cursor()
     cursor.execute(sql, val)
     connection.commit()
+    create_logs(f'В базу записали {new_record}')
 
 
 def create_pict_record(pict_list: list, pr_id: int, connection):
@@ -52,7 +54,7 @@ def create_pict_record(pict_list: list, pr_id: int, connection):
     cursor = connection.cursor()
     cursor.executemany(sql, val)
     connection.commit()
-
+    create_logs(f'В базу записали фото для {pr_id}')
 
 def get_record_list(table:str, pr_id: -1, connection):
  #   connection = create_connection()

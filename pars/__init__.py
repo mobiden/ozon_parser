@@ -5,7 +5,9 @@ from selenium.webdriver.chrome.service import Service
 import time
 import random
 from pars.proxy_agent_config import USER_AGENTS_PROXY_LIST
-from settings import CATALOGS_PATH, PRODUCTS_PATH, MAIN_URL
+from settings import CATALOGS_PATH, PRODUCTS_PATH, MAIN_URL, create_logs
+import undetected_chromedriver.v2 as uc
+
 
 
 
@@ -43,49 +45,67 @@ class Product_class:
 
 
 class Selenium_Class:
-   def __init__(self):
-      self.url = ''
-      self.filename = ''
-      self.option = None
-      self.service = None
-      self.sel_options = None
+    count = 0
 
-   def get_driver(self):
-      persona = self.__get_headers_proxy()
+    def __init__(self):
+        self.option = None
+        self.service = None
+        self.sel_options = None
+        self.count = self.count + 1
 
-      self.option = webdriver.ChromeOptions()
-      self.option.add_argument(f"user-agent={persona['user-agent']}")
-      self.option.add_argument("--disable-blink-features=AutomationControlled")
-      self.option.add_argument("--headless")
 
-      options_proxy = {
+
+    def get_driver(self):
+
+        persona = self.__get_headers_proxy()
+    #  self.option = uc.ChromeOptions()
+        self.option = webdriver.ChromeOptions()
+        self.option.add_argument(f"user-agent={persona['user-agent']}")
+        self.option.add_argument("--disable-blink-features=AutomationControlled")
+        self.option.add_argument('--no-first-run --no-service-autorun --password-store=basic')
+        self.option.add_argument("--headless")
+
+        options_proxy = {
          'proxy': {
             'https': persona['http_proxy'],
             'no_proxy': 'localhost,127.0.0.1:8080'
-         }
-      }
-      self.service = Service(executable_path="chromedriver")
-      #  driver = webdriver.Chrome(ChromeDriverManager().install())
-      driver = webdriver.Chrome(options=self.option, service=self.service)  # seleniumwire_options=options_proxy)
-      return driver
+               }
+               }
+        self.service = Service(executable_path= "chromedriver.exe")
+      #driver = webdriver.Chrome(ChromeDriverManager().install())
 
-   def reset_driver(self, driver):
-      handle = driver.current_window_handle
-      driver.service.stop()
-      time.sleep(6)
-      driver.webdriver.Chrome(options=self.option, service=self.service,
-                              seleniumwire_options=self.sel_options)
-      driver.switch_to.window(handle)
+        driver = webdriver.Chrome(options=self.option, service=self.service)  # seleniumwire_options=options_proxy)
+        create_logs(f'driver count {self.count}', True)
+        return driver
 
 
-   def __get_headers_proxy(self) -> dict:
+    def reset_driver(self, driver):
+        handle = driver.current_window_handle
+        driver.service.stop()
+        time.sleep(6)
+        driver.webdriver.Chrome(options=self.option, service=self.service,
+                                 seleniumwire_options=self.sel_options)
+        driver.switch_to.window(handle)
+
+
+    def __get_headers_proxy(self) -> dict:
       #    The config file must have dict:
       #       {'http_proxy':'http://user:password@ip:port',
       #          'user-agent': 'user_agent name'     }
-      try:
-         users = USER_AGENTS_PROXY_LIST
-         persona = random.choice(users)
-      except ImportError:
-         persona = None
-      return persona
+        try:
+            users = USER_AGENTS_PROXY_LIST
+            persona = random.choice(users)
+        except ImportError:
+            persona = None
+        return persona
 
+
+"""
+driver = uc.Chrome(headless=True,
+                         executable_path = "C:/Python/my_projects/ozon_parser/chromedriver.exe",
+                         version_main=95,
+                        # use_subprocess=False,
+                         options=self.option,
+                        # service=self.service
+                         )
+"""
