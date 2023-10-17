@@ -1,11 +1,14 @@
 import io
 import json
+import random
+
 from selenium.webdriver.common.by import By
 import time
 
 from database import create_connection
 from database.db_view import get_record_list, create_product_record, create_pict_record
 from pars import Selenium_Class, Product_class
+from pars.features import P_STYLES, P_SEASON
 from settings import CATALOGS_PATH, PRODUCTS_PATH, MAIN_URL, IMG_PATH, create_logs, BASE_DIR
 from bs4 import BeautifulSoup as bs
 import os
@@ -14,8 +17,12 @@ import requests
 from PIL import Image
 
 connection = create_connection()
+START_PAGE = 1
 
 
+
+def only_digit(string:str) -> str:
+    return ''.join(let if let.isdigit() else '' for let in string)
 
 def found_checking(url, filename):
     create_logs(f'На странице {url} включилась проверка. Удаляем сохраненную страницу {filename}', printing=True)
@@ -31,6 +38,7 @@ def found_checking(url, filename):
 def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
     html_file = add + html_file
     if os.path.exists(html_file):
+        create_logs(f'ищем продукты на {html_file}')
         with open(html_file, 'r', encoding='utf-8') as f:
             html = f.read()
         soup = bs(html, 'lxml')
@@ -38,11 +46,14 @@ def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
         head_title = soup.head.title
         if head_title is not None and head_title.text == 'Один момент…':
             found_checking(url=html_file, filename=add + html_file)
-        return False
+            return False
 
         prod_hrefs = soup.find_all(href=re.compile("product"))
+        if len(prod_hrefs) == 0:
+            create_logs(f'нет ссылок на странице {html_file}', True)
+            time.sleep(15)
 
-        for p_href in prod_hrefs:
+        for p_href in prod_hrefs: # парсим каждую ссылку товара на странице
             p_href = p_href.get('href')
             if p_href.find('www.ozon.ru') >= 0:
                 continue
@@ -50,10 +61,10 @@ def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
             url = p_href[1] + '/' + p_href[2] + '/'
             prod_id = url.split('-')[-1].replace('/', '')
             prod_id = ''.join(let if let.isdigit() else '' for let in prod_id)
-            check_rec = get_record_list('product', prod_id, connection)
-            if check_rec:
+            check_rec = get_record_list('product', int(prod_id), connection)
+            if check_rec: # проверяем на наличие в базе
                 if len(check_rec) > 0:
-                    create_logs(f'продукт {prod_id} уже есть в базе')
+                    create_logs(f'продукт {prod_id} уже есть в базе', True)
                     continue
             product_json1, pr1_filename = product_page1_parser(url)
             if product_json1 and len(product_json1) > 0:
@@ -66,11 +77,11 @@ def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
                     else:
                         create_logs(f'продукт {prod_id} не сохранен', True)
                 else:
-                    print(f'нет описания продукта {prod_id}')
-                    create_logs(f'нет описания продукта {prod_id}')
+                    create_logs(f'нет описания продукта {prod_id}', True)
             else:
-                print(f'нет фото у продукта {prod_id}')
-                create_logs(f'нет фото у продукта {prod_id}')
+                with open('prod_without_photo.txt', 'a', encoding="utf-8") as f:
+                    f.write(prod_id + '\n')
+                create_logs(f'нет фото у продукта {prod_id}', True)
                # get_product_page(html_file=pr1_filename, add='', connection=connection)
         return True
     else:
@@ -80,14 +91,16 @@ def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
 
 def save_page(url:str, filename: str):
     selen = Selenium_Class()
-    driver = selen.get_driver()
+    driver = selen.get_undetcted_driver()
     try:
         driver.get(url)
-        time.sleep(3)
-        driver.execute_script("window.scrollTo(5,4000);")
-        time.sleep(5)
-        driver.execute_script("window.scrollTo(5,4000);")
-        time.sleep(5)
+        time.sleep(6 + random.randint(1, 4))
+        temp_string = f"window.scrollTo({5 + random.randint(3, 11)},{3950 + random.randint(45, 67)});"
+        driver.execute_script(temp_string)
+        time.sleep(1 + random.randint(1, 5))
+
+       # driver.execute_script("window.scrollTo(5,4000);")
+       # time.sleep(2 + random.randint(1, 5))
         html = driver.page_source
         with open(CATALOGS_PATH + filename, 'w', encoding='utf-8') as f:
             f.write(html)
@@ -109,11 +122,11 @@ def save_product(url:str, filename: str) -> str:
             html = f.read()
     else:
         selen = Selenium_Class()
-        driver = selen.get_driver()
+        driver = selen.get_undetcted_driver()
 
         try:
             driver.get(url)
-            time.sleep(6)
+           # time.sleep(3 + + random.randint(1, 5))
             html = driver.page_source
             with open(full_f_name, 'w', encoding='utf-8') as f:
                 f.write(html)
@@ -147,25 +160,35 @@ def save_pict(url, filename):
             return True
 
 
+
+
 def get_cataloge_pages(url='https://www.ozon.ru/category/platya-zhenskie-7502/'):
-    #url =
+
     selen = Selenium_Class()
 
-    MAX_PAGE = 2000 # Ограничим парсинг первыми 1000 страницами
-    i = 1
-    while i <= MAX_PAGE:
-        filename = 'page_' + str(i) + '.html'
-        if os.path.exists(CATALOGS_PATH + filename):
-            create_logs(f'файл {filename}уже существует')
-        else:
-            if i != 1:
-                new_url = url + '?page=' + str(i)
-            else:
-                new_url = url
-            save_page(new_url, filename)
+    for t_style in P_STYLES:
+        for t_season in P_SEASON:
+            MAX_PAGE = 290 # Ограничим парсинг первыми 1000 страницами
+            i = START_PAGE
+            temp_season = t_season.split(' -- ')[1]
+            temp_style = t_style.split(' -- ')[1]
+            styles_number = only_digit(temp_style)
+            season_number = only_digit(temp_season)
+            while i <= MAX_PAGE:
+                filename = f'page_st{styles_number}se{season_number}_{str(i)}.html'
+                if os.path.exists(CATALOGS_PATH + filename):
+                    create_logs(f'файл {filename}уже существует')
+                else:
+                    if i != 1:
+                        new_url = url + '?page=' + str(i) + (
+                                temp_season.replace('?', '&') + temp_style.replace('?', '&'))
+                    else:
+                        new_url = url + temp_season.replace('&', '?') + temp_style.replace('?', '&')
+                    save_page(new_url, filename)
+                    create_logs(f'catalog_url {new_url}', True)
+                    cataloge_page_parser()
+                i += 1
 
-            cataloge_page_parser()
-        i += 1
 
 
 
@@ -317,7 +340,7 @@ def product_page2_parser(url:str):
     #    with open (PRODUCTS_PATH + ch_url + '.json', 'w', encoding='utf-8') as f: #сохранение json
      #       json.dump(product_json, f, ensure_ascii=False)
         #print(product_json)
-        time.sleep(6)
+        time.sleep(random.randint(1, 5))
         return product_json['widgetStates']
 
 
@@ -341,3 +364,6 @@ def cataloge_page_parser():
         if res:
             with open(CATALOGS_PATH + 'page_done.txt', 'a', encoding="utf-8") as f:
                 f.write(html_file + '\n')
+        else:
+            create_logs(f'не удалось распарсить {html_file}', True)
+            time.sleep(15)

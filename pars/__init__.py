@@ -6,7 +6,7 @@ import time
 import random
 from pars.proxy_agent_config import USER_AGENTS_PROXY_LIST
 from settings import CATALOGS_PATH, PRODUCTS_PATH, MAIN_URL, create_logs
-import undetected_chromedriver.v2 as uc
+import undetected_chromedriver as uc
 
 
 
@@ -51,14 +51,12 @@ class Selenium_Class:
         self.option = None
         self.service = None
         self.sel_options = None
-        self.count = self.count + 1
-
-
+        self.__class__.count += 1
 
     def get_driver(self):
 
         persona = self.__get_headers_proxy()
-    #  self.option = uc.ChromeOptions()
+        #self.option = uc.ChromeOptions()
         self.option = webdriver.ChromeOptions()
         self.option.add_argument(f"user-agent={persona['user-agent']}")
         self.option.add_argument("--disable-blink-features=AutomationControlled")
@@ -77,6 +75,40 @@ class Selenium_Class:
         driver = webdriver.Chrome(options=self.option, service=self.service)  # seleniumwire_options=options_proxy)
         create_logs(f'driver count {self.count}', True)
         return driver
+
+    def get_undetcted_driver(self):
+
+        persona = self.__get_headers_proxy()
+        self.option = uc.ChromeOptions()
+        self.option.add_argument(f"user-agent={persona['user-agent']}")
+        self.option.add_argument("--disable-blink-features=AutomationControlled")
+        self.option.add_argument('--no-first-run --no-service-autorun --password-store=basic')
+        self.option.add_argument("--headless")
+      #  self.option.add_argument("--user-data-dir=H:/temp")
+      #  self.option.add_argument("--disable-gpu")
+      #  self.option.add_argument("--no-sandbox")
+      #  self.option.add_argument("--disable-setuid-sandbox")
+
+        options_proxy = {
+         'proxy': {
+            'https': persona['http_proxy'],
+            'no_proxy': 'localhost,127.0.0.1:8080'
+               }
+               }
+  #      self.service = Service(executable_path= "chromedriver.exe")
+        driver = uc.Chrome(
+                          headless=False,
+                          use_subprocess=False,
+                          driver_executable_path="C:/Python/my_projects/ozon_parser/chromedriver.exe",
+                          version_main=109,
+
+                          options=self.option,
+                           # service=self.service
+                           )
+
+        create_logs(f'driver count {self.count}')
+        return driver
+
 
 
     def reset_driver(self, driver):
@@ -99,13 +131,3 @@ class Selenium_Class:
             persona = None
         return persona
 
-
-"""
-driver = uc.Chrome(headless=True,
-                         executable_path = "C:/Python/my_projects/ozon_parser/chromedriver.exe",
-                         version_main=95,
-                        # use_subprocess=False,
-                         options=self.option,
-                        # service=self.service
-                         )
-"""

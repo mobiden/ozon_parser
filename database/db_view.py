@@ -57,7 +57,7 @@ def create_pict_record(pict_list: list, pr_id: int, connection):
     create_logs(f'В базу записали фото для {pr_id}')
 
 def get_record_list(table:str, pr_id: -1, connection):
- #   connection = create_connection()
+
     select_line, where_line = '', ''
     if table.lower() == "product" or table.lower() == 'product_table':
         select_line = 'SELECT * FROM product_table'

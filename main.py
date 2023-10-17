@@ -12,5 +12,5 @@ def create_logs(string: str):
 
 
 if __name__ == '__main__':
-  #  get_cataloge_pages()
+    get_cataloge_pages()
     cataloge_page_parser()

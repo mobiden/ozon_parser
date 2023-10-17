@@ -2,12 +2,6 @@ import yaml
 import os
 from datetime import datetime
 
-
-CATALOGS_PATH = 'C:\\Python\\my_projects\\Work\\cataloges\\'
-PRODUCTS_PATH = 'C:\\Python\\my_projects\\Work\products\\'
-IMG_PATH = 'C:\\Python\\my_projects\\Work\\img\\'
-MAIN_URL = 'https://www.ozon.ru/'
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) + '\\'
 #загрузка конфиг файла
 with open(os.path.join(
@@ -24,3 +18,11 @@ def create_logs(string: str, printing = False):
         l.write(str(string) + "\n")
     if printing:
         print(string)
+
+
+CATALOGS_PATH = 'C:\\Python\\my_projects\\Work\\cataloges\\'
+PRODUCTS_PATH = 'C:\\Python\\my_projects\\Work\products\\'
+IMG_PATH = 'C:\\Python\\my_projects\\Work\\img\\'
+MAIN_URL = 'https://www.ozon.ru/'
+
+

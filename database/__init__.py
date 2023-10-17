@@ -1,6 +1,6 @@
 import mysql.connector
 from mysql.connector import Error
-from settings import db_config
+from settings import db_config, create_logs
 
 
 def create_connection(host_name = db_config['host'],
@@ -18,7 +18,7 @@ def create_connection(host_name = db_config['host'],
             database=db_name,
             port=port,
         )
-        print("Connection to MySQL DB successful")
+        create_logs("Connection to MySQL DB successful", True)
     except Exception as e:
         print(f"The error '{e}' occurred")
 
@@ -30,9 +30,9 @@ def execute_query(connection, query):
     try:
         cursor.execute(query)
         connection.commit()
-        print("Query executed successfully")
+        create_logs("Query executed successfully", True)
     except Error as e:
-        print(f"The error '{e}' occurred")
+        create_logs(f"The error '{e}' occurred", True)
 
 
 #connection = create_connection()
