@@ -64,7 +64,7 @@ def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
             check_rec = get_record_list('product', int(prod_id), connection)
             if check_rec: # проверяем на наличие в базе
                 if len(check_rec) > 0:
-                    create_logs(f'продукт {prod_id} уже есть в базе', True)
+                    create_logs(f'продукт {prod_id} уже есть в базе')
                     continue
             product_json1, pr1_filename = product_page1_parser(url)
             if product_json1 and len(product_json1) > 0:
