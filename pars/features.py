@@ -1,5 +1,5 @@
 P_STYLES = ['винтажный -- ?styleapparel=56425',
-          'вечерний -- ?styleapparel=57396'
+          'вечерний -- ?styleapparel=57396',
           'повседневный -- &styleapparel=55228',
           'праздничный -- ?styleapparel=106037',
           'классический -- ?styleapparel=55225',

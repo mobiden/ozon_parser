@@ -37,3 +37,4 @@ lxml~=4.9.1
 mysql-connector-python
 pyyaml
 undetected-chromedriver
+roboflow

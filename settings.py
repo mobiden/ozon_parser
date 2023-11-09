@@ -23,6 +23,7 @@ def create_logs(string: str, printing = False):
 CATALOGS_PATH = 'C:\\Python\\my_projects\\Work\\cataloges\\'
 PRODUCTS_PATH = 'C:\\Python\\my_projects\\Work\products\\'
 IMG_PATH = 'C:\\Python\\my_projects\\Work\\img\\'
+WORK_PATH = 'C:\\Python\\my_projects\\Work\\'
 MAIN_URL = 'https://www.ozon.ru/'
 
 

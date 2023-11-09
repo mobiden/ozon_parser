@@ -3,23 +3,42 @@ from database import create_connection
 from settings import create_logs
 from pars import Product_class
 
+PROD_FEATURES = ['id', 'title',  'description', 'brand', 'collection',
+          'fabric', 'dress_type', 'clasp_type', 'color', 'pr_style', 'season', 'country',
+          'pr_print', 'sleeve_length', 'sleeve_type', 'waistline', 'hem_length',
+          'interior_material','details', 'holiday', 'prod_num',
+                 ]
+
+
+def _execute_query(connection, query):
+    cursor = connection.cursor()
+    try:
+        cursor.execute(query)
+        connection.commit()
+        return True
+
+    except Exception as e:
+        print(f"Произошла ошибка '{e}'")
+        create_logs(f"Произошла ошибка '{e}'")
+        return False
+
 
 
 def _execute_read_query(connection, query):
     cursor = connection.cursor()
-    result = None
     try:
         cursor.execute(query)
-        result = cursor.fetchall()
-        return result
+        return cursor.fetchall()
     except Exception as e:
         print(f"Произошла ошибка '{e}'")
         create_logs(f"Произошла ошибка '{e}'")
+        return None
 
 
 def create_product_record(new_record:Product_class, connection):
   #  connection = create_connection()
     new_record.prod_id = int(new_record.prod_id)
+    #TODO: переделать из листа фич
     sql = "INSERT INTO product_table (title, prod_num, description, brand, collection, " \
           "fabric, dress_type, clasp_type, color, pr_style, season, country," \
           " pr_print, sleeve_length, sleeve_type, waistline, hem_length,  interior_material," \
@@ -56,24 +75,63 @@ def create_pict_record(pict_list: list, pr_id: int, connection):
     connection.commit()
     create_logs(f'В базу записали фото для {pr_id}')
 
-def get_record_list(table:str, pr_id: -1, connection):
 
+def get_record_list(table:str, connection, pr_num =  -1):
     select_line, where_line = '', ''
     if table.lower() == "product" or table.lower() == 'product_table':
         select_line = 'SELECT * FROM product_table'
-        if int(pr_id) >= 0:
-            where_line = f' WHERE product_table.prod_num = {pr_id}'
+        if int(pr_num) >= 0:
+            where_line = f' WHERE product_table.prod_num = {pr_num}'
     elif table.lower() in["picture","pict_table", "picture_table"]:
         select_line = 'SELECT * FROM picture_table'
-        if pr_id >= 0:
-            where_line = f' WHERE picture_table.prod_num = {pr_id}'
+        if pr_num >= 0:
+            where_line = f' WHERE picture_table.prod_num = {pr_num}'
     assert len(select_line + where_line) > 0
-
     return  _execute_read_query(connection, select_line + where_line)
 
 
 
+def delete_record(table:str, table_id:int, connection):
+    assert table_id >= 0
+    select_line = ''
+    if table.lower() == "product" or table.lower() == 'product_table':
+        select_line = f'DELETE FROM product_table WHERE product_table.id = {table_id}'
 
-def delete_record(id:int, connection):
-    pass
+    elif table.lower() in ["picture", "pict_table", "picture_table"]:
+        select_line = f'DELETE FROM picture_table WHERE picture_table.id = {table_id}'
 
+    assert len(select_line) > 0
+
+    return _execute_query(connection, select_line)
+
+
+def update_record(table:str, table_id:int, connection, update_list = []):
+    assert table_id >= 0 and len(update_list) != 0
+    field = update_list[0]
+    data = update_list[1]
+    select_line = ''
+    if table.lower() == "product" or table.lower() == 'product_table':
+        select_line = f'UPDATE product_table SET {field} = "{data}" WHERE product_table.id = {table_id}'
+
+    elif table.lower() in ["picture", "pict_table", "picture_table"]:
+        select_line = f'UPDATE picture_table SET {field} = "{data}" WHERE picture_table.id = {table_id}'
+
+    assert len(select_line) > 0
+
+    return _execute_query(connection, select_line)
+
+
+
+def get_related_pict_list(connection, pr_num =  -1, pr_id = -1):
+    assert pr_num >= 0 or pr_id >=0
+    assert pr_num * pr_id <= 0
+    select_line = 'SELECT * FROM picture_table as pi LEFT JOIN product_table as pr ON' \
+                  ' pi.prod_num = pr.prod_num where '
+    where_line = ''
+    if pr_num >= 0:
+        where_line = f'pr.prod_num = {pr_num}'
+    else:
+        where_line = f'pr.id = {pr_id}'
+
+    assert len(where_line) > 0
+    return  _execute_read_query(connection, select_line + where_line)

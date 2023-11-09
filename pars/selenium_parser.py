@@ -7,6 +7,7 @@ import time
 
 from database import create_connection
 from database.db_view import get_record_list, create_product_record, create_pict_record
+from dataset_cleaning.database_cleaning import del_digit, clean_fabric
 from pars import Selenium_Class, Product_class
 from pars.features import P_STYLES, P_SEASON
 from settings import CATALOGS_PATH, PRODUCTS_PATH, MAIN_URL, IMG_PATH, create_logs, BASE_DIR
@@ -18,6 +19,7 @@ from PIL import Image
 
 connection = create_connection()
 START_PAGE = 1
+END_PAGE = 287
 
 
 
@@ -31,8 +33,7 @@ def found_checking(url, filename):
         os.remove(filename)
     except Exception as e:
         create_logs(f'При удалении {filename} возникла ошибка {e}', True)
-
-    time.sleep(6)
+    time.sleep(7 + random.randint(3, 5))
 
 
 def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
@@ -46,12 +47,13 @@ def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
         head_title = soup.head.title
         if head_title is not None and head_title.text == 'Один момент…':
             found_checking(url=html_file, filename=add + html_file)
-            return False
+            return 4
 
         prod_hrefs = soup.find_all(href=re.compile("product"))
         if len(prod_hrefs) == 0:
             create_logs(f'нет ссылок на странице {html_file}', True)
-            time.sleep(15)
+            time.sleep(5 + random.randint(2, 4))
+            return 3
 
         for p_href in prod_hrefs: # парсим каждую ссылку товара на странице
             p_href = p_href.get('href')
@@ -59,12 +61,15 @@ def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
                 continue
             p_href = p_href.strip().split('/')
             url = p_href[1] + '/' + p_href[2] + '/'
+            if url.find('plate') == 0 and url.find('sarafan') == 0:
+                create_logs(f'url {url} не платье', True)
+                continue
             prod_id = url.split('-')[-1].replace('/', '')
             prod_id = ''.join(let if let.isdigit() else '' for let in prod_id)
             check_rec = get_record_list('product', int(prod_id), connection)
             if check_rec: # проверяем на наличие в базе
                 if len(check_rec) > 0:
-                    create_logs(f'продукт {prod_id} уже есть в базе')
+                 #   create_logs(f'продукт {prod_id} уже есть в базе')
                     continue
             product_json1, pr1_filename = product_page1_parser(url)
             if product_json1 and len(product_json1) > 0:
@@ -73,7 +78,7 @@ def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
                     product = add_product_to_base(product_json1, product_json2, prod_id)
                     if product is not None:
                         print(product)
-                        return True
+                        return 0
                     else:
                         create_logs(f'продукт {prod_id} не сохранен', True)
                 else:
@@ -83,10 +88,10 @@ def get_product_page(html_file = '', add = CATALOGS_PATH, connection = None):
                     f.write(prod_id + '\n')
                 create_logs(f'нет фото у продукта {prod_id}', True)
                # get_product_page(html_file=pr1_filename, add='', connection=connection)
-        return True
+        return 0
     else:
         print(f'нет файла {html_file}')
-        return False
+        return 1
 
 
 def save_page(url:str, filename: str):
@@ -165,19 +170,28 @@ def save_pict(url, filename):
 def get_cataloge_pages(url='https://www.ozon.ru/category/platya-zhenskie-7502/'):
 
     selen = Selenium_Class()
+    cat_file = CATALOGS_PATH + 'cat_style+season.txt'
+    cat_list = []
+    if os.path.exists(cat_file):
+        with open(cat_file, 'r', encoding='utf-8') as f:  # файл для записи уже проверенных каталогов
+            cat_list = f.read()
 
     for t_style in P_STYLES:
         for t_season in P_SEASON:
-            MAX_PAGE = 290 # Ограничим парсинг первыми 1000 страницами
+
             i = START_PAGE
             temp_season = t_season.split(' -- ')[1]
             temp_style = t_style.split(' -- ')[1]
             styles_number = only_digit(temp_style)
             season_number = only_digit(temp_season)
-            while i <= MAX_PAGE:
+            if f'{styles_number}--{season_number}' in cat_list:
+                continue
+
+            while i <= END_PAGE:
                 filename = f'page_st{styles_number}se{season_number}_{str(i)}.html'
                 if os.path.exists(CATALOGS_PATH + filename):
-                    create_logs(f'файл {filename}уже существует')
+                   # create_logs(f'файл {filename}уже существует')
+                    pass
                 else:
                     if i != 1:
                         new_url = url + '?page=' + str(i) + (
@@ -186,14 +200,14 @@ def get_cataloge_pages(url='https://www.ozon.ru/category/platya-zhenskie-7502/')
                         new_url = url + temp_season.replace('&', '?') + temp_style.replace('?', '&')
                     save_page(new_url, filename)
                     create_logs(f'catalog_url {new_url}', True)
-                    cataloge_page_parser()
+                    _ = cataloge_page_parser()
                 i += 1
-
-
+            with open(cat_file, 'a', encoding='utf-8') as f:
+                f.write(f'{styles_number}--{season_number}\n')
 
 
 def add_product_to_base(pictures_path: list, product_json:dict, prod_id:int) -> Product_class:
-    adding = True
+    adding = False
     if len(pictures_path) == 0:
         return None
 
@@ -212,19 +226,29 @@ def add_product_to_base(pictures_path: list, product_json:dict, prod_id:int) -> 
     product.pictures_path = pictures_path
     product.link = product_descr['link']
     product.title = product_descr['productTitle'].split(': ')[1]
-    temp_dict = product_descr['characteristics'][0]['short']
+    try:
+        temp_dict = product_descr['characteristics'][0]['short']
+    except:
+        create_logs(f'{product}{prod_id} нет в 0 short')
+        temp_dict = product_descr['characteristics'][1]['short']
+
     for item in temp_dict:
         key = item['key'].lower()
         text = item['values'][0]['text'].lower()
 
         if key == 'type':
-            if text.lower() != 'платье':
-                adding = False
-                break
+
+            if text.lower() in ['платье', 'сарафан']:
+                adding = True
+            else:
+                create_logs(f'товар {prod_id} type is not платье', True)
+                with open('not_dress', 'a', encoding='utf-8') as f:
+                    f.write(prod_id + '\n')
+                return None
         elif key == 'season':
             product.season = text
         elif len(product.fabric) == 0 and key == 'composition':
-            product.fabric = text
+            product.fabric = clean_fabric(text)
         elif key == 'styleapparel':
             product.pr_style = text
         elif key == 'brand':
@@ -238,7 +262,7 @@ def add_product_to_base(pictures_path: list, product_json:dict, prod_id:int) -> 
         elif key == 'modelclothing':
             product.dress_type = text
         elif key == 'collection':
-            product.collection = text #TODO: убрать цифры
+            product.collection = del_digit(text)
         elif key == 'typeclasp':
             product.clasp_type = text
         elif key == 'typesleeve':
@@ -272,12 +296,13 @@ def add_product_to_base(pictures_path: list, product_json:dict, prod_id:int) -> 
 
 
     rec = get_record_list('product', product.prod_id, connection)
-    if (not rec or len(rec) == 0) and adding:
+    if (not rec or len(rec) == 0):
         create_product_record(product, connection)
         create_pict_record(pict_list = product.pictures_path, pr_id = product.prod_id,
                            connection=connection)
     else:
-        create_logs(f'товар {product.prod_id} уже есть в базе', True)
+      #  create_logs(f'товар {product.prod_id} уже есть в базе', True)
+        return None
 
     return product
 
@@ -304,9 +329,6 @@ def product_page1_parser(url:str, tempfile = ''):
         found_divs = soup.find_all('img', attrs = {'srcset' : True})
         for enum, found_d in enumerate(found_divs):
 
-
-        #    pict_url1 = j.get('src')
-        #    save_pict(pict_url1, IMG_PATH + ch_url + str(enum) + '.jpg' )
             pict_url2 = found_d.get('srcset').split()[0]
             if pict_url2[-3:] != 'jpg':
                 continue
@@ -344,26 +366,39 @@ def product_page2_parser(url:str):
         return product_json['widgetStates']
 
 
-def cataloge_page_parser():
+def cataloge_page_parser(): # перебирает все html c каталогами в папке
     file_list = os.listdir(CATALOGS_PATH)
     done_file = []
     if os.path.exists(CATALOGS_PATH + 'page_done.txt'):
         with open(CATALOGS_PATH + 'page_done.txt', 'r', encoding='utf-8') as f:
             done_file = [line.strip() for line in f.readlines()]
+
+    without_prod = 0
+    found_ch = 0
     for html_file in file_list:
         if html_file[-4:] != 'html':
             continue
-
-
         if os.path.exists(CATALOGS_PATH + 'page_done.txt'):
             if html_file in done_file:
                 continue
-
         create_logs(f'парсим {html_file}')
         res = get_product_page(html_file = html_file, add = CATALOGS_PATH, connection = connection)
-        if res:
+        # 0 - ok, 1 - не найден файл, 3 - нет ссылок на стр., 4 - вкл. защита
+        if res == 0:
             with open(CATALOGS_PATH + 'page_done.txt', 'a', encoding="utf-8") as f:
                 f.write(html_file + '\n')
-        else:
-            create_logs(f'не удалось распарсить {html_file}', True)
-            time.sleep(15)
+            without_prod = 0
+        elif res == 3:
+            with open(CATALOGS_PATH + 'page_done.txt', 'a', encoding="utf-8") as f:
+                f.write(html_file + '\n')
+            without_prod += 1
+            if without_prod > 2:
+                return None
+        elif res == 1:
+            pass
+        elif res == 4:
+            found_ch += 1
+            create_logs('включилась пауза', True)
+            time.sleep((found_ch - 1) * 100 + random.randint(15, 30))
+    return None
+
