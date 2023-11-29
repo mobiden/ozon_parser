@@ -3,7 +3,7 @@ from database import create_connection
 from settings import create_logs
 from pars import Product_class
 
-PROD_FEATURES = ['id', 'title',  'description', 'brand', 'collection',
+PROD_FEATURES_LIST = ['id', 'title',  'description', 'brand', 'collection',
           'fabric', 'dress_type', 'clasp_type', 'color', 'pr_style', 'season', 'country',
           'pr_print', 'sleeve_length', 'sleeve_type', 'waistline', 'hem_length',
           'interior_material','details', 'holiday', 'prod_num',

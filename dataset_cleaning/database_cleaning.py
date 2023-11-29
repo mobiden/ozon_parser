@@ -2,37 +2,40 @@ import os
 import re
 
 from database import create_connection
-from database.db_view import get_record_list, update_record, delete_record, get_related_pict_list, PROD_FEATURES
+from database.db_view import get_record_list, update_record, delete_record, get_related_pict_list, PROD_FEATURES_LIST
+from dataset_cleaning.colors import COLOR_CHANGE_DICT
 from settings import CATALOGS_PATH, PRODUCTS_PATH, IMG_PATH, MAIN_URL, create_logs
 
 connection = create_connection()
 
 
 def database_cleaning():
-  #  pict_db_clean()
-  #  prod_db_clean()
-  #clean_features()
-  add_prints()
+   # pict_db_clean()  # убирает ссылки из базы на несуществующие картинки
+    prod_db_clean()  # убирает продукт из базы, если нет у него картинок
+  #clean_features()  # очищает базу от неправильно написанных признаков
+  #add_prints()  # добавляет признаки
 
 def pict_db_clean():
     record_list = get_record_list(table = 'picture', connection = connection)
+    record_list_count = len(record_list)
     for enum, record in enumerate(record_list):
+        current_files = os.listdir(IMG_PATH)
         temp_id = record[0]
         temp_prod_id = record[1]
         temp_file =record[2].split('/')[-1].split('\\')[-1]
-        temp_path =  IMG_PATH + temp_file
+        if temp_file in current_files:
+            current_files.remove(temp_file)
+
+        temp_path = IMG_PATH + temp_file
         temp_path = temp_path.replace('\\', '/')
-        if record[2].find('media') >= 0:
-            if os.path.exists(temp_path):
-                if temp_path != record[2]:
-                    ans = update_record(table='picture', table_id=temp_id,
-                                    connection=connection, update_list=['pict_path', temp_path])
-            else:
-                create_logs(f'нет {temp_path}')
-                ans = delete_record(table='picture', table_id=temp_id, connection=connection)
-                with open('check_db.txt', 'a', encoding='utf-8') as f:
-                    f.write(f'{temp_path}\n')
-                create_logs(f'нет {temp_path}')
+        if not os.path.exists(temp_path):
+            create_logs(f'нет {temp_path}', True)
+            ans = delete_record(table='picture', table_id=temp_id, connection=connection)
+            if ans:
+                create_logs(f'ссылка {temp_path} удалена. {enum}/{record_list_count}', True)
+
+    with open('photo_without_rec.txt', 'w', encoding='utf-8') as f:
+        f.write(str(current_files))
 
 def prod_db_clean():
     pr_record_list = get_record_list(table='product', connection=connection)
@@ -147,19 +150,23 @@ def get_digit(old_string:str) -> str:
 
 
 def clean_color(old_color:str) -> str:
+    result = old_color
+    if result in COLOR_CHANGE_DICT.keys():
+        result = COLOR_CHANGE_DICT[result]
+    result = del_digit(result).strip().strip('-')
 
-    result = del_digit(old_color).strip().strip('-')
-
-    result = result.replace('о - ', 'о-').replace('.', ' ').replace('  ', ' ')\
-    .replace('о ','о-').replace('меланж','').strip().replace('цвет','').replace('принт','')\
+    result = result.replace('о - ', 'о-').replace('.', ' ').replace('  ', ' ').replace(' цвет', ' ')\
+    .replace('о ', 'о-').replace('меланж', '').strip().replace('цвет ', ' ').replace('принт', '')\
     .replace('пепельно', 'серо').replace('св. ', 'светло-').replace('св.', 'светло-')\
-    .replace('ярко-', '').replace('дэним','').replace('деним','').replace('платье','').strip()
+    .replace('ярко-', '').replace('дэним', '').replace('деним', '').replace('платье', '')\
+    .replace(' в полоску', ' ').replace('полоска', '').replace('бледно', 'светло')\
+    .replace('золотистый','золотой').replace('цветок', '').strip()
 
-    result = result.replace('изумрудный', 'зеленый')
+    result = result.replace('изумрудный', 'зеленый').replace('бирюзовый', 'зелено-голубой')
 
-    result = result.split(' c ')[0]
+    result = result.split(' с ')[0]
 
-    if result[-2:] == 'ee':
+    if result[-2:] == 'ее':
         result = result[:-2] + 'ий'
     elif result == 'голубое':
         result = 'голубой'
@@ -168,7 +175,9 @@ def clean_color(old_color:str) -> str:
 
 
     if result.find(';') >= 0:
-        result = result.split(';')[0]
+        result = result.split(';')[0].strip()
+    elif result.find(',') >= 0:
+        result = result.split(',')[0].strip()
     return result
 
 
@@ -177,8 +186,9 @@ def add_prints():
     for record in pr_record_list:
         temp_id = record[0]
 
-        temp_colors = record[PROD_FEATURES.index('color')] # color
-        temp_print = record[PROD_FEATURES.index('pr_print')]  # print
+        temp_colors = record[PROD_FEATURES_LIST.index('color')] # color
+        temp_print = record[PROD_FEATURES_LIST.index('pr_print')]  # print
+        #TODO: сделать цикл
         if temp_colors.find('горох') >= 0 or temp_colors.find('горошек') >= 0 or temp_colors.find('горощек') >= 0:
             if len(temp_print) == 0:
                 create_logs(f'добавляем горох в {temp_id}', True)

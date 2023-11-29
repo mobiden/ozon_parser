@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from create_finish_dataset.f_d_creating import f_d_createing
+from create_finish_dataset.f_d_creating import f_d_creating
 from pars.selenium_parser import cataloge_page_parser, get_cataloge_pages
 from dataset_cleaning.database_cleaning import database_cleaning
 from settings import create_logs
@@ -18,5 +18,5 @@ def parser_start():
 
 if __name__ == '__main__':
     # parser_start()
-    database_cleaning()
-    f_d_createing()
+   # database_cleaning()
+    f_d_creating()
